@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# RepoGraph AI - Docker Ignore
+# ═══════════════════════════════════════════════════════════════════════════════
+# Files and directories to exclude from Docker build context
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (use docker-compose env vars instead)
+.env
+.env.local
+.env.*.local
+
+# Credentials (mount at runtime if needed)
+credentials/
+
+# Data directory (mount as volume)
+data/
+
+# Logs (mount as volume)
+logs/
+
+# Documentation (not needed in image)
+docs/
+*.md
+!requirements.txt
+
+# Tests
+tests/
+test_*.py
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Docker files (prevent recursive includes)
+Dockerfile*
+docker-compose*.yml
+.dockerignore

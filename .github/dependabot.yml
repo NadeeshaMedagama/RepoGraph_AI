@@ -1,0 +1,92 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# RepoGraph AI - Dependabot Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+# Automated dependency updates for Python packages, GitHub Actions, and Docker
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: 2
+updates:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Python Dependencies (pip)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "nadeeshame"
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+    commit-message:
+      prefix: "⬆️ deps(pip):"
+    groups:
+      # Group minor and patch updates together
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Security updates are separate and prioritized
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Ignore major version updates for core packages (handle manually)
+      - dependency-name: "langchain*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pinecone*"
+        update-types: ["version-update:semver-major"]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # GitHub Actions
+  # ─────────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "nadeeshame"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "⬆️ deps(actions):"
+    groups:
+      actions-all:
+        patterns:
+          - "*"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Docker Dependencies
+  # ─────────────────────────────────────────────────────────────────────────────
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "nadeeshame"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    commit-message:
+      prefix: "⬆️ deps(docker):"

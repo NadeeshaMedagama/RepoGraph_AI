@@ -1,0 +1,349 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# RepoGraph AI - Release Management
+# ═══════════════════════════════════════════════════════════════════════════════
+# Automated release creation and versioning
+# Supports semantic versioning and changelog generation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Release Management
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.3)'
+        required: true
+        type: string
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - prerelease
+          - draft
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Validate Release
+  # ═══════════════════════════════════════════════════════════════════════════
+  validate:
+    name: ✅ Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if prerelease
+          if [[ "$VERSION" == *"-"* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "📦 Release version: $VERSION"
+
+      - name: 🔍 Validate semantic version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-prerelease"
+            exit 1
+          fi
+          echo "✅ Valid semantic version: $VERSION"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Build Release Artifacts
+  # ═══════════════════════════════════════════════════════════════════════════
+  build:
+    name: 🏗️ Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: 🏗️ Build Python package
+        run: |
+          python -m build
+        continue-on-error: true
+
+      - name: 📦 Create release archive
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          
+          # Create distribution directory
+          mkdir -p dist
+          
+          # Create source archive
+          tar -czf dist/repograph-ai-${VERSION}-source.tar.gz \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='.git' \
+            --exclude='*.pyc' \
+            --exclude='data' \
+            --exclude='logs' \
+            --exclude='credentials' \
+            .
+          
+          # Create checksum
+          cd dist && sha256sum * > checksums.sha256
+
+      - name: 📤 Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/
+          retention-days: 30
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Generate Changelog
+  # ═══════════════════════════════════════════════════════════════════════════
+  changelog:
+    name: 📝 Generate Changelog
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Generate changelog from commits
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            # First release, get all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # Get commits since last tag
+            COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep -iE "^- (feat|feature|add)" || true)
+          FIXES=$(echo "$COMMITS" | grep -iE "^- (fix|bug|patch)" || true)
+          DOCS=$(echo "$COMMITS" | grep -iE "^- (doc|docs|readme)" || true)
+          CHORES=$(echo "$COMMITS" | grep -iE "^- (chore|build|ci|refactor)" || true)
+          OTHER=$(echo "$COMMITS" | grep -ivE "^- (feat|feature|add|fix|bug|patch|doc|docs|readme|chore|build|ci|refactor)" || true)
+          
+          # Build changelog
+          CHANGELOG=""
+          
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="$CHANGELOG### ✨ Features\n$FEATURES\n\n"
+          fi
+          
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="$CHANGELOG### 🐛 Bug Fixes\n$FIXES\n\n"
+          fi
+          
+          if [ -n "$DOCS" ]; then
+            CHANGELOG="$CHANGELOG### 📚 Documentation\n$DOCS\n\n"
+          fi
+          
+          if [ -n "$CHORES" ]; then
+            CHANGELOG="$CHANGELOG### 🔧 Maintenance\n$CHORES\n\n"
+          fi
+          
+          if [ -n "$OTHER" ]; then
+            CHANGELOG="$CHANGELOG### 📦 Other Changes\n$OTHER\n\n"
+          fi
+          
+          # Save to file and output
+          echo -e "$CHANGELOG" > CHANGELOG_RELEASE.md
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 📤 Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: CHANGELOG_RELEASE.md
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Build and Push Docker Image
+  # ═══════════════════════════════════════════════════════════════════════════
+  docker:
+    name: 🐳 Build Release Docker Image
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: 🔑 Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker gcr.io --quiet
+
+      - name: 🏗️ Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            gcr.io/${{ secrets.GCP_PROJECT_ID }}/repograph-ai:${{ needs.validate.outputs.version }}
+            gcr.io/${{ secrets.GCP_PROJECT_ID }}/repograph-ai:latest
+          labels: |
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Create GitHub Release
+  # ═══════════════════════════════════════════════════════════════════════════
+  release:
+    name: 📦 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, build, changelog, docker]
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📥 Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/
+
+      - name: 📦 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          name: 🚀 RepoGraph AI v${{ needs.validate.outputs.version }}
+          body: |
+            # RepoGraph AI v${{ needs.validate.outputs.version }}
+            
+            ## 📋 Changelog
+            
+            ${{ needs.changelog.outputs.changelog }}
+            
+            ## 🐳 Docker Image
+            
+            ```bash
+            docker pull gcr.io/${{ secrets.GCP_PROJECT_ID }}/repograph-ai:${{ needs.validate.outputs.version }}
+            ```
+            
+            ## 📦 Installation
+            
+            ### From Source
+            ```bash
+            git clone ${{ github.server_url }}/${{ github.repository }}.git
+            cd repograph-ai
+            pip install -r requirements.txt
+            ```
+            
+            ### Using Docker
+            ```bash
+            docker run -d -p 8000:8000 \
+              -e AZURE_OPENAI_API_KEY=your_key \
+              -e PINECONE_API_KEY=your_key \
+              gcr.io/${{ secrets.GCP_PROJECT_ID }}/repograph-ai:${{ needs.validate.outputs.version }}
+            ```
+            
+            ## 📚 Documentation
+            
+            - [Architecture Guide](docs/ARCHITECTURE.md)
+            - [API Reference](docs/API_REFERENCE.md)
+            - [Deployment Guide](docs/DEPLOYMENT.md)
+            
+            ---
+            
+            **Full Changelog**: ${{ github.server_url }}/${{ github.repository }}/compare/...v${{ needs.validate.outputs.version }}
+          draft: ${{ github.event.inputs.release_type == 'draft' }}
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' || github.event.inputs.release_type == 'prerelease' }}
+          files: |
+            dist/*
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify Release
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: 📢 Notify Release
+    runs-on: ubuntu-latest
+    needs: [validate, release]
+    if: always() && needs.release.result == 'success'
+    steps:
+      - name: 📢 Send notification
+        run: |
+          echo "🎉 Release v${{ needs.validate.outputs.version }} published successfully!"
+          echo "📦 GitHub Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}"
+
+      # Uncomment to add Slack notification
+      # - name: 📢 Notify Slack
+      #   uses: slackapi/slack-github-action@v1
+      #   with:
+      #     payload: |
+      #       {
+      #         "text": "🚀 RepoGraph AI v${{ needs.validate.outputs.version }} released!",
+      #         "blocks": [
+      #           {
+      #             "type": "section",
+      #             "text": {
+      #               "type": "mrkdwn",
+      #               "text": "🚀 *RepoGraph AI v${{ needs.validate.outputs.version }}* has been released!\n\n<${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}|View Release>"
+      #             }
+      #           }
+      #         ]
+      #       }
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

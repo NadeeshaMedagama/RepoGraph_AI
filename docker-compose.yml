@@ -1,0 +1,145 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# RepoGraph AI - Docker Compose Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+# Multi-service deployment configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Indexer Service - Processes documents and stores in Pinecone
+  # ─────────────────────────────────────────────────────────────────────────────
+  repograph-indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: repograph-indexer
+    environment:
+      # Azure OpenAI
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT=${AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT:-choreo-ai-embedding}
+      - AZURE_OPENAI_EMBEDDINGS_VERSION=${AZURE_OPENAI_EMBEDDINGS_VERSION:-2024-02-01}
+      - AZURE_OPENAI_CHAT_DEPLOYMENT=${AZURE_OPENAI_CHAT_DEPLOYMENT:-architect-agent-development}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+      # Pinecone
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-choreo-ai-assistant-v2}
+      - PINECONE_DIMENSION=${PINECONE_DIMENSION:-1536}
+      - PINECONE_NAMESPACE=${PINECONE_NAMESPACE:-documents}
+      # Google Vision (optional)
+      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY:-}
+      # Processing
+      - DATA_DIRECTORY=/app/data
+      - SKIP_EXISTING_DOCUMENTS=${SKIP_EXISTING_DOCUMENTS:-true}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-200}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./data:/app/data:ro
+      - ./logs:/app/logs
+    command: ["python", "main.py", "index"]
+    restart: "no"
+    networks:
+      - repograph-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # API Service - REST API for querying the knowledge base
+  # ─────────────────────────────────────────────────────────────────────────────
+  repograph-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: repograph-api
+    environment:
+      # Azure OpenAI
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT=${AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT:-choreo-ai-embedding}
+      - AZURE_OPENAI_EMBEDDINGS_VERSION=${AZURE_OPENAI_EMBEDDINGS_VERSION:-2024-02-01}
+      - AZURE_OPENAI_CHAT_DEPLOYMENT=${AZURE_OPENAI_CHAT_DEPLOYMENT:-architect-agent-development}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+      # Pinecone
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-choreo-ai-assistant-v2}
+      - PINECONE_DIMENSION=${PINECONE_DIMENSION:-1536}
+      - PINECONE_NAMESPACE=${PINECONE_NAMESPACE:-documents}
+      # API
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./logs:/app/logs
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - repograph-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Query CLI Service - Interactive query interface
+  # ─────────────────────────────────────────────────────────────────────────────
+  repograph-query:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: repograph-query
+    environment:
+      # Azure OpenAI
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT=${AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT:-choreo-ai-embedding}
+      - AZURE_OPENAI_CHAT_DEPLOYMENT=${AZURE_OPENAI_CHAT_DEPLOYMENT:-architect-agent-development}
+      # Pinecone
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-choreo-ai-assistant-v2}
+      - PINECONE_NAMESPACE=${PINECONE_NAMESPACE:-documents}
+      # Logging
+      - LOG_LEVEL=WARNING
+    stdin_open: true
+    tty: true
+    command: ["python", "query.py", "interactive"]
+    networks:
+      - repograph-network
+    profiles:
+      - interactive
+
+networks:
+  repograph-network:
+    driver: bridge
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Usage:
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# 1. Build images:
+#    docker-compose build
+#
+# 2. Run indexer (one-time):
+#    docker-compose up repograph-indexer
+#
+# 3. Run API server:
+#    docker-compose up -d repograph-api
+#
+# 4. Run interactive query:
+#    docker-compose --profile interactive run repograph-query
+#
+# 5. View logs:
+#    docker-compose logs -f repograph-api
+#
+# 6. Stop all services:
+#    docker-compose down
+#
+# ═══════════════════════════════════════════════════════════════════════════════

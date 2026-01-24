@@ -1,8 +1,8 @@
 # RepoGraph AI
 
-<p align="center">
+<!-- <p align="center">
   <img src="docs/assets/logo.png" alt="RepoGraph AI Logo" width="200"/>
-</p>
+</p> -->
 
 <p align="center">
   <strong>🚀 Enterprise-Grade Intelligent Document Processing & RAG System</strong>

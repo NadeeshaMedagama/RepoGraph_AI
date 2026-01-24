@@ -9,7 +9,7 @@ name: Docker Build & Test
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'Dockerfile'
       - 'docker-compose.yml'
@@ -17,7 +17,7 @@ on:
       - '**.py'
   pull_request:
     branches:
-      - main
+      - master
     paths:
       - 'Dockerfile'
       - 'docker-compose.yml'

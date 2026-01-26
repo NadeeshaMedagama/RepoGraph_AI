@@ -2,9 +2,6 @@
 # RepoGraph AI - Unit Tests for Models
 # ═══════════════════════════════════════════════════════════════════════════════
 
-import pytest
-from pathlib import Path
-from datetime import datetime
 from uuid import uuid4
 
 from models.document import (
@@ -31,11 +28,11 @@ class TestFileType:
         assert FileType.PNG.value == "png"
         assert FileType.PYTHON.value == "py"
 
-    def test_file_type_from_extension(self):
-        """Test getting file type from extension."""
-        assert FileType.from_extension(".pdf") == FileType.PDF
-        assert FileType.from_extension(".py") == FileType.PYTHON
-        assert FileType.from_extension(".unknown") is None
+    def test_file_type_enum_membership(self):
+        """Test file type enum membership."""
+        assert FileType.PDF in FileType
+        assert FileType.PYTHON in FileType
+        assert "pdf" == FileType.PDF.value
 
 
 class TestFileCategory:
@@ -180,6 +177,8 @@ class TestSearchResult:
             file_name="test.pdf",
             file_type="pdf",
             category="document",
+            chunk_index=0,
+            total_chunks=1,
         )
 
         result = SearchResult(

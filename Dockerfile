@@ -5,7 +5,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Stage 1: Builder
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -56,7 +56,6 @@ COPY utils/ ./utils/
 COPY main.py .
 COPY query.py .
 COPY api.py .
-COPY test_setup.py .
 
 # Create directories for data and logs
 RUN mkdir -p /app/data /app/logs

@@ -388,21 +388,29 @@ def finalize_node(state: RAGWorkflowState) -> Dict[str, Any]:
     started_at = state.get("started_at", completed_at)
     duration = (completed_at - started_at).total_seconds()
 
+    # Preserve statistics from previous nodes
+    chunks_created = state.get('chunks_created', 0)
+    embeddings_created = state.get('embeddings_created', 0)
+    vectors_stored = state.get('vectors_stored', 0)
+
     logger.info(
         f"✨ Workflow complete!\n"
         f"   📁 Total files found: {state.get('total_files_found', 0)}\n"
         f"   ⏭️  Files skipped: {state.get('files_skipped', 0)}\n"
         f"   ✅ Files processed: {files_processed}\n"
         f"   ❌ Files failed: {files_failed}\n"
-        f"   📦 Chunks created: {state.get('chunks_created', 0)}\n"
-        f"   🧠 Embeddings: {state.get('embeddings_created', 0)}\n"
-        f"   💾 Vectors stored: {state.get('vectors_stored', 0)}\n"
+        f"   📦 Chunks created: {chunks_created}\n"
+        f"   🧠 Embeddings: {embeddings_created}\n"
+        f"   💾 Vectors stored: {vectors_stored}\n"
         f"   ⏱️  Duration: {duration:.2f}s"
     )
 
     return {
         "files_processed": files_processed,
         "files_failed": files_failed,
+        "chunks_created": chunks_created,
+        "embeddings_created": embeddings_created,
+        "vectors_stored": vectors_stored,
         "completed_at": completed_at,
         "current_phase": "completed",
         "is_complete": True,

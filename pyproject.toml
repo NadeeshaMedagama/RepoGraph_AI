@@ -1,0 +1,46 @@
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311', 'py312']
+extend-exclude = '''
+/(
+    \.venv
+  | venv
+  | __pycache__
+  | \.git
+  | \.pytest_cache
+  | data
+  | credentials
+  | docs
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = [
+    ".venv/*",
+    "venv/*",
+    "__pycache__/*",
+    "data/*",
+    "credentials/*",
+    "docs/*",
+    "build/*",
+    "dist/*"
+]
+known_first_party = ["config", "interfaces", "models", "processors", "services", "utils", "workflows"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+exclude = [
+    "^.venv/",
+    "^venv/",
+    "^__pycache__/",
+    "^data/",
+    "^credentials/",
+    "^docs/",
+    "^build/",
+    "^dist/"
+]

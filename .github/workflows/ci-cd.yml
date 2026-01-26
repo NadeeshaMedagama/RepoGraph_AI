@@ -198,12 +198,37 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
 
-      - name: 🏷️ Extract metadata for Docker
-        id: meta
+      - name: 🔍 Check GCP secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "GCP secrets not configured. Skipping GCP operations."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Authenticate to Google Cloud
+        if: steps.check_secrets.outputs.skip != 'true' && github.event_name != 'pull_request'
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: 🔑 Configure Docker for GCR
+        if: steps.check_secrets.outputs.skip != 'true' && github.event_name != 'pull_request'
+        run: |
+          gcloud auth configure-docker gcr.io --quiet
+
+      - name: 🏷️ Extract metadata for Docker (with GCP)
+        if: steps.check_secrets.outputs.skip != 'true'
+        id: meta-gcp
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.DOCKER_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}
+            gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -212,49 +237,39 @@ jobs:
             type=sha,prefix=,suffix=,format=short
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
 
-      - name: 🔧 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🔐 Authenticate to Google Cloud
-        if: ${{ github.event_name != 'pull_request' && env.GCP_PROJECT_ID != '' }}
-        uses: google-github-actions/auth@v3
+      - name: 🏗️ Build and push Docker image (with GCP)
+        if: steps.check_secrets.outputs.skip != 'true' && github.event_name != 'pull_request'
+        id: build-gcp
+        uses: docker/build-push-action@v6
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-        continue-on-error: true
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta-gcp.outputs.tags }}
+          labels: ${{ steps.meta-gcp.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
 
-      - name: 🔑 Configure Docker for GCR
-        if: ${{ github.event_name != 'pull_request' && env.GCP_PROJECT_ID != '' }}
-        run: |
-          gcloud auth configure-docker gcr.io --quiet
-        continue-on-error: true
-
-      - name: 🏗️ Build Docker image
-        id: build
+      - name: 🏗️ Build Docker image only (without GCP)
+        if: steps.check_secrets.outputs.skip == 'true' || github.event_name == 'pull_request'
+        id: build-local
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: false
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.SERVICE_NAME }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      - name: 📤 Push to GCR (if authenticated)
-        if: ${{ github.event_name != 'pull_request' && env.GCP_PROJECT_ID != '' }}
-        run: |
-          # Push all tags
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            docker push "$tag" || echo "⚠️ Failed to push $tag (may need GCP credentials)"
-          done
-        continue-on-error: true
-
       - name: 🔍 Scan Docker image for vulnerabilities
+        if: steps.check_secrets.outputs.skip != 'true'
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKER_REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          image-ref: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
         continue-on-error: true
@@ -281,11 +296,22 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
 
+      - name: 🔍 Check GCP secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "❌ GCP secrets not configured. Cannot deploy."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 🔐 Authenticate to Google Cloud
+        if: steps.check_secrets.outputs.skip != 'true'
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-        continue-on-error: false
 
       - name: ☁️ Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
@@ -341,11 +367,22 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
 
+      - name: 🔍 Check GCP secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY_PROD }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID_PROD }}" ]; then
+            echo "❌ GCP production secrets not configured. Cannot deploy."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 🔐 Authenticate to Google Cloud
+        if: steps.check_secrets.outputs.skip != 'true'
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
-        continue-on-error: false
 
       - name: ☁️ Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3

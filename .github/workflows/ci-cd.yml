@@ -300,10 +300,10 @@ jobs:
         id: check_secrets
         run: |
           if [ -z "${{ secrets.GCP_SA_KEY }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
-            echo "❌ GCP secrets not configured. Cannot deploy."
+            echo "⚠️ GCP secrets not configured. Skipping deployment."
             echo "skip=true" >> $GITHUB_OUTPUT
-            exit 1
           else
+            echo "✅ GCP secrets configured. Proceeding with deployment."
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
@@ -314,11 +314,13 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: ☁️ Set up Cloud SDK
+        if: steps.check_secrets.outputs.skip != 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
       - name: 🚀 Deploy to Cloud Run (Staging)
+        if: steps.check_secrets.outputs.skip != 'true'
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v3
         with:
@@ -343,14 +345,20 @@ jobs:
             LOG_LEVEL=DEBUG
 
       - name: 🧪 Run smoke tests
+        if: steps.check_secrets.outputs.skip != 'true'
         run: |
           echo "Running smoke tests against ${{ steps.deploy.outputs.url }}"
           curl -f "${{ steps.deploy.outputs.url }}/health" || exit 1
 
       - name: 📢 Notify deployment
-        if: always()
+        if: steps.check_secrets.outputs.skip != 'true'
         run: |
           echo "✅ Staging deployment completed: ${{ steps.deploy.outputs.url }}"
+
+      - name: ⚠️ Skipped deployment notice
+        if: steps.check_secrets.outputs.skip == 'true'
+        run: |
+          echo "⚠️ Staging deployment skipped - GCP secrets not configured"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Job 6: Deploy to Production (Google Cloud Run)
@@ -371,10 +379,10 @@ jobs:
         id: check_secrets
         run: |
           if [ -z "${{ secrets.GCP_SA_KEY_PROD }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID_PROD }}" ]; then
-            echo "❌ GCP production secrets not configured. Cannot deploy."
+            echo "⚠️ GCP production secrets not configured. Skipping deployment."
             echo "skip=true" >> $GITHUB_OUTPUT
-            exit 1
           else
+            echo "✅ GCP production secrets configured. Proceeding with deployment."
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
@@ -385,11 +393,13 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
 
       - name: ☁️ Set up Cloud SDK
+        if: steps.check_secrets.outputs.skip != 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
 
       - name: 🚀 Deploy to Cloud Run (Production)
+        if: steps.check_secrets.outputs.skip != 'true'
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v3
         with:
@@ -415,15 +425,21 @@ jobs:
             LOG_LEVEL=WARNING
 
       - name: 🧪 Run production smoke tests
+        if: steps.check_secrets.outputs.skip != 'true'
         run: |
           echo "Running production smoke tests against ${{ steps.deploy.outputs.url }}"
           curl -f "${{ steps.deploy.outputs.url }}/health" || exit 1
           curl -f "${{ steps.deploy.outputs.url }}/stats" || exit 1
 
       - name: 📢 Notify production deployment
-        if: always()
+        if: steps.check_secrets.outputs.skip != 'true'
         run: |
           echo "✅ Production deployment completed: ${{ steps.deploy.outputs.url }}"
+
+      - name: ⚠️ Skipped deployment notice
+        if: steps.check_secrets.outputs.skip == 'true'
+        run: |
+          echo "⚠️ Production deployment skipped - GCP secrets not configured"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Job 7: Create Release

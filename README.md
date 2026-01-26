@@ -257,6 +257,10 @@ RepoGraph AI/
 │   ├── test_models.py
 │   └── test_services.py
 │
+├── scripts/                    # Utility scripts
+│   ├── test_setup.py          # Setup verification script
+│   └── README.md              # Scripts documentation
+│
 ├── docs/                       # Documentation
 │   ├── ARCHITECTURE.md
 │   ├── API_REFERENCE.md
@@ -264,19 +268,24 @@ RepoGraph AI/
 │   ├── DEPLOYMENT.md
 │   └── CICD.md                # CI/CD pipeline documentation
 │
-├── data/                       # Data directory
-│   └── diagrams/              # Your documents go here
+├── data/                       # Data directory (see data/README.md)
+│   ├── diagrams/              # Architecture diagrams and visual documents
+│   └── README.md              # Data organization guide
+│
+├── credentials/                # Service account keys (gitignored)
+│   └── README.md              # Security guidelines
 │
 ├── main.py                    # CLI: Indexing entry point
 ├── query.py                   # CLI: Query entry point
 ├── api.py                     # FastAPI REST server
-├── test_setup.py              # Setup verification
 ├── Dockerfile                 # Docker image definition
 ├── docker-compose.yml         # Multi-service deployment
 ├── requirements.txt           # Python dependencies
+├── pyproject.toml             # Black, isort, mypy configuration
+├── .flake8                    # Flake8 linting configuration
 ├── pytest.ini                 # Test configuration
 ├── cliff.toml                 # Changelog generator config
-├── .env                       # Configuration (gitignored)
+├── .env                       # Environment variables (gitignored)
 └── README.md                  # This file
 ```
 

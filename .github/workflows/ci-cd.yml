@@ -73,11 +73,11 @@ jobs:
       - name: 🔎 Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+          flake8 . --count --exit-zero --statistics
 
       - name: 📊 Type checking with mypy
         run: |
-          mypy --install-types --non-interactive --ignore-missing-imports .
+          mypy --install-types --non-interactive .
         continue-on-error: true
 
   # ═══════════════════════════════════════════════════════════════════════════

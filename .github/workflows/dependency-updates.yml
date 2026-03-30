@@ -72,7 +72,7 @@ jobs:
           cat outdated.json | python -m json.tool
 
       - name: 📤 Upload outdated packages report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: outdated-packages
           path: outdated.json

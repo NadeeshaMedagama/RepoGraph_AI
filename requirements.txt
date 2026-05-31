@@ -129,4 +129,4 @@ graphql-core>=3.2.3
 # Markdown Processing
 # ─────────────────────────────────────────────────────────────────────────────────
 markdown>=3.10.2
-markdown-it-py>=3.0.0
+markdown-it-py>=4.2.0

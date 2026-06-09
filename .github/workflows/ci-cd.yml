@@ -121,7 +121,7 @@ jobs:
         continue-on-error: true
 
       - name: 📊 Upload coverage report
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           flags: unittests

@@ -18,7 +18,7 @@ python-dotenv>=1.2.2
 langchain>=0.3.30
 langchain-openai>=0.3.35
 langchain-community>=0.4.2
-langgraph>=1.2.9
+langgraph>=1.2.10
 langchain-text-splitters>=0.3.11
 
 # ─────────────────────────────────────────────────────────────────────────────────
